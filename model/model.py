@@ -74,7 +74,7 @@ class EchoHeart(nn.Module):
     @torch.no_grad()
     def generate_response(
         self,
-        context: list[str],
+        context: list,
         image: torch.Tensor = None,
         max_new_tokens: int = 128,
         temperature: float = 0.8,

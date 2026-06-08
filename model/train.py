@@ -48,8 +48,12 @@ def train():
     else:
         train_ds, val_ds = build_dataset(args.model_name)
 
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=2)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, num_workers=2)
+    num_workers = 2 if os.name != "nt" else 0  # Windows doesn't support num_workers>0 well
+    pin_memory = torch.cuda.is_available()
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
+                              num_workers=num_workers, pin_memory=pin_memory)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size,
+                            num_workers=num_workers, pin_memory=pin_memory)
 
     model = EchoHeart(dialogpt_name=args.model_name).to(device)
 
@@ -111,6 +115,8 @@ def train():
             best_val_loss = val_loss
             ckpt_path = os.path.join(args.output_dir, "best_model.pt")
             torch.save(model.state_dict(), ckpt_path)
+            # Also save tokenizer for inference
+            model.tokenizer.save_pretrained(os.path.join(args.output_dir, "tokenizer"))
             print(f"  Saved best model to {ckpt_path}")
 
     print("Training complete.")

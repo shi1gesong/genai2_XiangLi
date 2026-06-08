@@ -76,16 +76,14 @@ with gr.Blocks(title="EchoHeart 🤗", theme=gr.themes.Soft()) as demo:
     send_btn.click(
         chat,
         inputs=[msg_box, image_box, state],
-        outputs=[msg_box, image_box, chatbot],
-    )
+        outputs=[msg_box, image_box, state],
+    ).then(lambda h: h, inputs=[state], outputs=[chatbot])
     msg_box.submit(
         chat,
         inputs=[msg_box, image_box, state],
-        outputs=[msg_box, image_box, chatbot],
-    )
-    clear_btn.click(lambda: ([], []), outputs=[chatbot, state])
-
-    chatbot.change(lambda h: h, inputs=[chatbot], outputs=[state])
+        outputs=[msg_box, image_box, state],
+    ).then(lambda h: h, inputs=[state], outputs=[chatbot])
+    clear_btn.click(lambda: ([], []), outputs=[state, chatbot])
 
 
 if __name__ == "__main__":
