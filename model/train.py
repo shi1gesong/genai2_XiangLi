@@ -1,7 +1,7 @@
 """
 Fine-tuning script for EchoHeart.
 Usage:
-    python model/train.py --epochs 3 --use_wandb
+    python -m model.train --epochs 3 --warmup_steps 500
 """
 
 import argparse
@@ -27,7 +27,7 @@ def parse_args():
     p.add_argument("--epochs", type=int, default=3)
     p.add_argument("--batch_size", type=int, default=8)
     p.add_argument("--lr", type=float, default=5e-5)
-    p.add_argument("--warmup_steps", type=int, default=200)
+    p.add_argument("--warmup_steps", type=int, default=500)
     p.add_argument("--use_wandb", action="store_true")
     p.add_argument("--output_dir", default="checkpoints")
     return p.parse_args()
@@ -52,18 +52,23 @@ def train():
     else:
         train_ds, val_ds = build_dataset(args.model_name)
 
-    num_workers = 2 if os.name != "nt" else 0  # Windows doesn't support num_workers>0 well
+    num_workers = 0  # Windows
     pin_memory = torch.cuda.is_available()
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
                               num_workers=num_workers, pin_memory=pin_memory)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size,
                             num_workers=num_workers, pin_memory=pin_memory)
 
-    model = EchoHeart(dialogpt_name=args.model_name).to(device).to(torch.bfloat16)
+    # float32 model + autocast bfloat16: stable training at near-bfloat16 speed
+    model = EchoHeart(dialogpt_name=args.model_name).to(device)
+    # Keep optimizer params in float32 for stable gradients
+    for param in model.parameters():
+        if param.requires_grad:
+            param.data = param.data.float()
 
     optimizer = torch.optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr,
-        eps=1e-8, weight_decay=0.01
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=args.lr, eps=1e-8, weight_decay=0.01
     )
     total_steps = len(train_loader) * args.epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, args.warmup_steps, total_steps)
@@ -82,11 +87,6 @@ def train():
 
             outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
             loss = outputs.loss
-            if torch.isnan(loss):
-                print(f"NaN loss at step {step}!")
-                print("input_ids max:", input_ids.max(), "min:", input_ids.min())
-                print("logits max:", outputs.logits.max(), "min:", outputs.logits.min())
-                break
 
             optimizer.zero_grad()
             loss.backward()
@@ -119,13 +119,12 @@ def train():
 
         if args.use_wandb:
             import wandb
-            wandb.log({"val/loss": val_loss, "val/perplexity": torch.exp(torch.tensor(val_loss)).item(), "epoch": epoch})
+            wandb.log({"val/loss": val_loss, "epoch": epoch})
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             ckpt_path = os.path.join(args.output_dir, "best_model.pt")
             torch.save(model.state_dict(), ckpt_path)
-            # Also save tokenizer for inference
             model.tokenizer.save_pretrained(os.path.join(args.output_dir, "tokenizer"))
             print(f"  Saved best model to {ckpt_path}")
 

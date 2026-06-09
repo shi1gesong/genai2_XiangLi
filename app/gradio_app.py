@@ -21,7 +21,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Loading EchoHeart model...")
 model = EchoHeart(dialogpt_name=MODEL_NAME)
 if os.path.exists(CHECKPOINT):
-    model.load_state_dict(torch.load(CHECKPOINT, map_location="cpu"))
+    model.load_state_dict(torch.load(CHECKPOINT, map_location="cpu", weights_only=False))
     print(f"Loaded checkpoint: {CHECKPOINT}")
 else:
     print("No checkpoint found — using base weights.")
@@ -31,13 +31,15 @@ model.eval()
 
 def chat(user_message: str, image, history: list):
     """
-    history: list of [user_msg, bot_msg] pairs (Gradio format)
+    history: list of {"role": ..., "content": ...} dicts (Gradio 4+ format)
     """
+    if not user_message.strip():
+        return "", None, history
+
+    # Build context from history
     context = []
-    for user_turn, bot_turn in history:
-        context.append(user_turn)
-        if bot_turn:
-            context.append(bot_turn)
+    for msg in history:
+        context.append(msg["content"])
     context.append(user_message)
 
     img_tensor = None
@@ -47,20 +49,21 @@ def chat(user_message: str, image, history: list):
 
     response = model.generate_response(context, image=img_tensor)
 
-    history = history + [[user_message, response]]
+    history = history + [
+        {"role": "user", "content": user_message},
+        {"role": "assistant", "content": response},
+    ]
     return "", None, history
 
 
-with gr.Blocks(title="EchoHeart 🤗", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="EchoHeart 🤗") as demo:
     gr.Markdown("# EchoHeart 🤗\n### Your emotionally aware AI companion")
-
     chatbot = gr.Chatbot(height=480, label="Conversation")
 
     with gr.Row():
         with gr.Column(scale=4):
             msg_box = gr.Textbox(
                 placeholder="Share what's on your mind...",
-                label="Your message",
                 lines=2,
                 show_label=False,
             )
@@ -87,4 +90,4 @@ with gr.Blocks(title="EchoHeart 🤗", theme=gr.themes.Soft()) as demo:
 
 
 if __name__ == "__main__":
-    demo.launch(share=False)
+    demo.launch(share=False, theme=gr.themes.Soft())
