@@ -7,7 +7,7 @@ EchoHeart is a fine-tuned conversational AI that provides empathetic, emotionall
 
 ## Features
 
-- 💬 **Empathetic dialogue** — fine-tuned on 38,000+ emotional support conversations
+- 💬 **Empathetic dialogue** — fine-tuned on 145,000+ emotional support conversations
 - 🖼️ **Multimodal input** — upload images and receive emotionally relevant responses
 - 🎨 **Chatbot GUI** — real-time conversational interface built with Gradio
 - 📊 **Experiment tracking** — training metrics logged with Weights & Biases
@@ -18,8 +18,10 @@ EchoHeart is a fine-tuned conversational AI that provides empathetic, emotionall
 
 | Dataset | Size | Source |
 |---|---|---|
-| EmpatheticDialogues (Facebook Research) | 25,000+ conversations, 32 emotion categories | HuggingFace |
-| DailyDialog | 13,000+ daily conversations with emotion annotations | HuggingFace |
+| BlendedSkillTalk (Facebook Research) | ~76,000 empathetic multi-turn conversations | HuggingFace |
+| PersonaChat | ~139,000 persona-based dialogues | HuggingFace |
+
+> Note: Original datasets (EmpatheticDialogues, DailyDialog) were replaced due to incompatibility with HuggingFace datasets >= 5.0 (legacy loading scripts no longer supported).
 
 ---
 
@@ -89,7 +91,16 @@ python app/gradio_app.py
 
 ## Results
 
-> Training metrics and evaluation results will be added here after fine-tuning.
+| Metric | Value |
+|---|---|
+| Training samples | 145,067 |
+| Epochs completed | 1 |
+| Validation Perplexity | 20.36 |
+| Training precision | bfloat16 (autocast) |
+| Hardware | NVIDIA GeForce RTX 5070 Ti |
+
+Sample response (text-only input: *"I've been feeling really lonely lately."*):
+> "I'm sorry you are feeling lonely. hugs"
 
 ---
 
