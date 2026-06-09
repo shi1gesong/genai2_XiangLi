@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from model.model import EchoHeart
+from data.preprocess import ChatDataset
 from data.preprocess import DATA_DIR
 
 
@@ -76,7 +77,7 @@ def main():
 
     val_path = os.path.join(DATA_DIR, "val.pt")
     if os.path.exists(val_path):
-        val_ds = torch.load(val_path)
+        val_ds = torch.load(val_path, weights_only=False)
         val_loader = DataLoader(val_ds, batch_size=args.batch_size)
         ppl = compute_perplexity(model, val_loader, device)
         print(f"Validation Perplexity: {ppl:.2f}")

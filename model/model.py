@@ -39,6 +39,9 @@ class EchoHeart(nn.Module):
             nn.Linear(clip_dim, hidden_size),
             nn.Tanh(),
         )
+        # Freeze image_proj during text-only training to prevent nan gradients
+        for p in self.image_proj.parameters():
+            p.requires_grad = False
 
     def encode_image(self, images: torch.Tensor) -> torch.Tensor:
         """Returns (batch, hidden_size) image soft-prompt tokens."""

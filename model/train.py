@@ -8,11 +8,15 @@ import argparse
 import os
 import sys
 
+# Ensure project root is in path
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 import torch
 from torch.utils.data import DataLoader
 from transformers import get_linear_schedule_with_warmup
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from model.model import EchoHeart
 from data.preprocess import build_dataset, DATA_DIR, ChatDataset
 
@@ -43,8 +47,8 @@ def train():
     val_path = os.path.join(DATA_DIR, "val.pt")
     if os.path.exists(train_path) and os.path.exists(val_path):
         print("Loading cached datasets...")
-        train_ds = torch.load(train_path)
-        val_ds = torch.load(val_path)
+        train_ds = torch.load(train_path, weights_only=False)
+        val_ds = torch.load(val_path, weights_only=False)
     else:
         train_ds, val_ds = build_dataset(args.model_name)
 
@@ -55,10 +59,11 @@ def train():
     val_loader = DataLoader(val_ds, batch_size=args.batch_size,
                             num_workers=num_workers, pin_memory=pin_memory)
 
-    model = EchoHeart(dialogpt_name=args.model_name).to(device)
+    model = EchoHeart(dialogpt_name=args.model_name).to(device).to(torch.bfloat16)
 
     optimizer = torch.optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr
+        filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr,
+        eps=1e-8, weight_decay=0.01
     )
     total_steps = len(train_loader) * args.epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, args.warmup_steps, total_steps)
@@ -77,10 +82,15 @@ def train():
 
             outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
             loss = outputs.loss
+            if torch.isnan(loss):
+                print(f"NaN loss at step {step}!")
+                print("input_ids max:", input_ids.max(), "min:", input_ids.min())
+                print("logits max:", outputs.logits.max(), "min:", outputs.logits.min())
+                break
 
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             scheduler.step()
 

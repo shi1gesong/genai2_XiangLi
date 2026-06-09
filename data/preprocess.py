@@ -1,12 +1,13 @@
 """
 Dataset loading and preprocessing for EchoHeart.
-Downloads EmpatheticDialogues and DailyDialog from HuggingFace,
-tokenizes for DialoGPT fine-tuning, and saves to disk.
+Uses datasets compatible with datasets>=5.0 (Parquet-based, no legacy scripts):
+  - blended_skill_talk  (~76k empathetic multi-turn conversations, Facebook)
+  - AlekseyKorshuk/persona-chat (~8k persona-based chit-chat conversations)
 """
 
 import os
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List
 
 import torch
 from torch.utils.data import Dataset
@@ -25,17 +26,14 @@ class ConversationSample:
     response: str
 
 
-def load_empathetic_dialogues() -> List[ConversationSample]:
-    dataset = load_dataset("empathetic_dialogues", trust_remote_code=True)
+def load_blended_skill_talk() -> List[ConversationSample]:
+    dataset = load_dataset("blended_skill_talk")
     samples = []
     for split in ["train", "validation"]:
-        grouped: Dict[str, List] = {}
         for row in dataset[split]:
-            conv_id = row["conv_id"]
-            grouped.setdefault(conv_id, []).append(row)
-        for utterances in grouped.values():
-            utterances.sort(key=lambda x: x["utterance_idx"])
-            turns = [u["utterance"].strip() for u in utterances]
+            turns = [t.strip() for t in row.get("previous_utterance", []) if t.strip()]
+            if len(turns) < 2:
+                continue
             for i in range(1, len(turns)):
                 samples.append(ConversationSample(
                     context=turns[max(0, i - 3):i],
@@ -44,17 +42,22 @@ def load_empathetic_dialogues() -> List[ConversationSample]:
     return samples
 
 
-def load_daily_dialog() -> List[ConversationSample]:
-    dataset = load_dataset("daily_dialog", trust_remote_code=True)
+def load_persona_chat() -> List[ConversationSample]:
+    dataset = load_dataset("AlekseyKorshuk/persona-chat")
     samples = []
     for split in ["train", "validation"]:
-        for dialog in dataset[split]["dialog"]:
-            turns = [t.strip() for t in dialog]
-            for i in range(1, len(turns)):
-                samples.append(ConversationSample(
-                    context=turns[max(0, i - 3):i],
-                    response=turns[i],
-                ))
+        for row in dataset[split]:
+            utterances = row.get("utterances", [])
+            for utt in utterances:
+                history = utt.get("history", [])
+                candidates = utt.get("candidates", [])
+                if not history or not candidates:
+                    continue
+                # last candidate is the gold response
+                response = candidates[-1].strip()
+                context = [h.strip() for h in history[-3:] if h.strip()]
+                if context and response:
+                    samples.append(ConversationSample(context=context, response=response))
     return samples
 
 
@@ -101,15 +104,15 @@ def build_dataset(model_name: str = "microsoft/DialoGPT-medium"):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
-    print("Loading EmpatheticDialogues...")
-    emp_samples = load_empathetic_dialogues()
-    print(f"  {len(emp_samples)} samples")
+    print("Loading BlendedSkillTalk...")
+    bst_samples = load_blended_skill_talk()
+    print(f"  {len(bst_samples)} samples")
 
-    print("Loading DailyDialog...")
-    dd_samples = load_daily_dialog()
-    print(f"  {len(dd_samples)} samples")
+    print("Loading PersonaChat...")
+    pc_samples = load_persona_chat()
+    print(f"  {len(pc_samples)} samples")
 
-    all_samples = emp_samples + dd_samples
+    all_samples = bst_samples + pc_samples
     print(f"Total: {len(all_samples)} samples")
 
     split = int(0.9 * len(all_samples))
