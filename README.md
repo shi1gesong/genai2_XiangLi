@@ -94,7 +94,6 @@ python app/gradio_app.py
 | Metric | Value |
 |---|---|
 | Training samples | 145,067 |
-| Epochs completed | 1 |
 | Validation Perplexity | 14.87 |
 | Epochs completed | 3 |
 | Training precision | bfloat16 (autocast) |
