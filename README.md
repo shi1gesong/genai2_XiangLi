@@ -95,7 +95,8 @@ python app/gradio_app.py
 |---|---|
 | Training samples | 145,067 |
 | Epochs completed | 1 |
-| Validation Perplexity | 20.36 |
+| Validation Perplexity | 14.87 |
+| Epochs completed | 3 |
 | Training precision | bfloat16 (autocast) |
 | Hardware | NVIDIA GeForce RTX 5070 Ti |
 
