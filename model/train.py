@@ -85,8 +85,9 @@ def train():
             attention_mask = batch["attention_mask"].to(device)
             labels = batch["labels"].to(device)
 
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-            loss = outputs.loss
+            with torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16):
+                outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+                loss = outputs.loss
 
             optimizer.zero_grad()
             loss.backward()
@@ -111,7 +112,8 @@ def train():
                 input_ids = batch["input_ids"].to(device)
                 attention_mask = batch["attention_mask"].to(device)
                 labels = batch["labels"].to(device)
-                outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+                with torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
                 val_loss += outputs.loss.item()
 
         val_loss /= len(val_loader)
